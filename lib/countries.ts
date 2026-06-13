@@ -47,7 +47,10 @@ export async function obtenerPaises(): Promise<Country[]> {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw: any[] = await resp.json();
+  const data = await resp.json();
+  // La API puede devolver un objeto de error con HTTP 200 en casos de rate-limit o
+  // mantenimiento; si no es un array el .filter() siguiente lanzaria TypeError.
+  const raw: any[] = Array.isArray(data) ? data : [];
 
   const paises: Country[] = raw
     .filter((p) => {

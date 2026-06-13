@@ -140,7 +140,7 @@ export async function obtenerDesafiosActivos(): Promise<Desafio[]> {
     WHERE d.activo = 1
     ORDER BY d.creado_en DESC
   `);
-  return res.rows.map(rowToDesafio);
+  return (res?.rows ?? []).map(rowToDesafio);
 }
 
 /** Lista los desafios del profesor logueado */
@@ -152,7 +152,7 @@ export async function obtenerMisDesafios(): Promise<Desafio[]> {
     sql:  "SELECT * FROM desafios WHERE profesor_id = ? ORDER BY creado_en DESC",
     args: [sesion.id],
   });
-  return res.rows.map(rowToDesafio);
+  return (res?.rows ?? []).map(rowToDesafio);
 }
 
 function rowToDesafio(row: Record<string, unknown>): Desafio {
