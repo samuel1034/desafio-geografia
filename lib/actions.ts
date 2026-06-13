@@ -93,6 +93,8 @@ export async function crearDesafio(formData: FormData): Promise<{ error?: string
   const vidas         = parseInt(formData.get("vidas") as string) || 3;
 
   if (!titulo) return { error: "El titulo es obligatorio." };
+  if (num_preguntas <= 0) return { error: "El numero de preguntas debe ser mayor que cero." };
+  if (vidas <= 0) return { error: "El numero de vidas debe ser mayor que cero." };
 
   await db.execute({
     sql:  "INSERT INTO desafios (titulo, descripcion, continente, num_preguntas, vidas, profesor_id) VALUES (?,?,?,?,?,?)",
@@ -114,6 +116,9 @@ export async function actualizarDesafio(formData: FormData): Promise<{ error?: s
   const num_preguntas = parseInt(formData.get("num_preguntas") as string) || 10;
   const vidas         = parseInt(formData.get("vidas") as string) || 3;
   const activo        = formData.get("activo") === "1" ? 1 : 0;
+
+  if (num_preguntas <= 0) return { error: "El numero de preguntas debe ser mayor que cero." };
+  if (vidas <= 0) return { error: "El numero de vidas debe ser mayor que cero." };
 
   await db.execute({
     sql:  "UPDATE desafios SET titulo=?, descripcion=?, continente=?, num_preguntas=?, vidas=?, activo=? WHERE id=? AND profesor_id=?",

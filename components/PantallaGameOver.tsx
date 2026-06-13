@@ -22,14 +22,20 @@ export default function PantallaGameOver({ nombreJugador, puntaje, desafio, onRe
 
   useEffect(() => {
     async function guardarYCargar() {
-      await guardarPuntaje(desafio.id, puntaje);
-      const top10 = await obtenerClasificacion(desafio.id);
-      setClasificacion(top10);
-      const pos = top10.findIndex(
-        (e) => e.nombre_usuario === nombreJugador && e.puntaje === puntaje
-      );
-      if (pos !== -1) setMiPosicion(pos + 1);
-      setGuardando(false);
+      try {
+        await guardarPuntaje(desafio.id, puntaje);
+        const top10 = await obtenerClasificacion(desafio.id);
+        setClasificacion(top10);
+        const pos = top10.findIndex(
+          (e) => e.nombre_usuario === nombreJugador && e.puntaje === puntaje
+        );
+        if (pos !== -1) setMiPosicion(pos + 1);
+      } catch (error) {
+        console.error("Error al guardar el puntaje:", error);
+        alert("Hubo un error al guardar tu puntaje, pero puedes seguir viendo el ranking.");
+      } finally {
+        setGuardando(false);
+      }
     }
     guardarYCargar();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
