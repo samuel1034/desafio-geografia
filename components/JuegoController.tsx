@@ -46,9 +46,15 @@ export default function JuegoController({ paises, desafios, sesion }: Props) {
   // Filtra paises segun el continente del desafio
   function paisesDelDesafio(desafio: Desafio): Country[] {
     if (!desafio.continente) return paises;
-    return paises.filter(
-      (p) => p.continent.toLowerCase() === desafio.continente!.toLowerCase()
+    const continenteBuscado = desafio.continente.toLowerCase().trim();
+    const lista = paises.filter(
+      (p) => p.continent.toLowerCase().trim() === continenteBuscado
     );
+    if (lista.length === 0) {
+      console.warn(`[JuegoController] Continente "${desafio.continente}" sin paises. Usando todos.`);
+      return [...paises];
+    }
+    return lista;
   }
 
   return (

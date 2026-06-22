@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, Star, ArrowRight, HelpCircle, Map } from "lucide-react";
 import type { Country, Question, QuestionType, Desafio } from "@/lib/types";
@@ -12,57 +12,66 @@ interface Props {
   onGameOver: (puntaje: number) => void;
 }
 
-function generarPregunta(paises: Country[], usados: Set<string>): Question | null {
-  const disponibles = paises.filter((p) => !usados.has(p.name));
-  if (disponibles.length === 0) return null;
-  const pais = disponibles[Math.floor(Math.random() * disponibles.length)];
-  const tipo: QuestionType = Math.random() > 0.5 ? "capital" : "continente";
-  return {
-    country: pais,
-    type: tipo,
-    correctAnswer: tipo === "capital" ? pais.capital : pais.continent,
-  };
+// Pre-genera toda la cola de preguntas de una sola vez sin estado intermedio
+function generarCola(paises: Country[], numPreguntas: number): Question[] {
+  const shuffled = [...paises].sort(() => Math.random() - 0.5);
+  const seleccionados = shuffled.slice(0, numPreguntas);
+  return seleccionados.map((pais) => {
+    const tipo: QuestionType = Math.random() > 0.5 ? "capital" : "continente";
+    return {
+      country: pais,
+      type: tipo,
+      correctAnswer: tipo === "capital" ? pais.capital : pais.continent,
+    };
+  });
 }
 
 function normalizar(texto: string): string {
-  return texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  return texto.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 }
 
 export default function PantallaJuego({ paises, desafio, nombreJugador, onGameOver }: Props) {
-  const [puntaje, setPuntaje]       = useState(0);
-  const [vidas, setVidas]           = useState(desafio.vidas);
-  const [preguntaNum, setPreguntaNum] = useState(0);
-  const [respuesta, setRespuesta]   = useState("");
-  const [pregunta, setPregunta]     = useState<Question | null>(null);
-  const [usados, setUsados]         = useState<Set<string>>(new Set());
-  const [feedback, setFeedback]     = useState<"correcto" | "incorrecto" | null>(null);
+  // Cola completa generada una sola vez al montar — sin efectos ni setState async
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const cola = useMemo(() => generarCola(paises, desafio.num_preguntas), []);
+
+  const [indice, setIndice]     = useState(0);
+  const [puntaje, setPuntaje]   = useState(0);
+  const [vidas, setVidas]       = useState(desafio.vidas);
+  const [respuesta, setRespuesta] = useState("");
+  const [feedback, setFeedback] = useState<"correcto" | "incorrecto" | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (paises.length === 0) { onGameOver(0); return; }
-    setPregunta(generarPregunta(paises, new Set()));
-  }, [paises, onGameOver]);
-
-  useEffect(() => {
     if (!feedback) setTimeout(() => inputRef.current?.focus(), 100);
-  }, [pregunta, feedback]);
+  }, [indice, feedback]);
 
-  function avanzarPregunta(puntajeActual: number) {
-    const nuevosUsados = new Set(usados);
-    if (pregunta) nuevosUsados.add(pregunta.country.name);
-    setUsados(nuevosUsados);
+  // Sin países disponibles → pantalla de error en lugar de terminar el juego
+  if (cola.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-slate-400 text-center">
+          Sin paises disponibles para este desafio.
+        </p>
+        <button
+          onClick={() => onGameOver(0)}
+          className="text-sm text-cyan-400 underline hover:text-cyan-300 transition-colors"
+        >
+          Volver al lobby
+        </button>
+      </div>
+    );
+  }
 
-    // Verificamos si llegamos al limite de preguntas del desafio
-    if (preguntaNum + 1 >= desafio.num_preguntas) {
-      onGameOver(puntajeActual);
+  const pregunta = cola[indice];
+
+  function avanzar(nuevoPuntaje: number) {
+    const siguiente = indice + 1;
+    if (siguiente >= cola.length) {
+      onGameOver(nuevoPuntaje);
       return;
     }
-
-    const siguiente = generarPregunta(paises, nuevosUsados);
-    if (!siguiente) { onGameOver(puntajeActual); return; }
-
-    setPregunta(siguiente);
-    setPreguntaNum((n) => n + 1);
+    setIndice(siguiente);
     setRespuesta("");
     setFeedback(null);
   }
@@ -77,7 +86,7 @@ export default function PantallaJuego({ paises, desafio, nombreJugador, onGameOv
       const nuevoPuntaje = puntaje + 1;
       setPuntaje(nuevoPuntaje);
       setFeedback("correcto");
-      setTimeout(() => avanzarPregunta(nuevoPuntaje), 1200);
+      setTimeout(() => avanzar(nuevoPuntaje), 1200);
     } else {
       const nuevasVidas = vidas - 1;
       setVidas(nuevasVidas);
@@ -85,17 +94,9 @@ export default function PantallaJuego({ paises, desafio, nombreJugador, onGameOv
       if (nuevasVidas <= 0) {
         setTimeout(() => onGameOver(puntaje), 1500);
       } else {
-        setTimeout(() => avanzarPregunta(puntaje), 1500);
+        setTimeout(() => avanzar(puntaje), 1500);
       }
     }
-  }
-
-  if (!pregunta) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
   }
 
   const textosPregunta: Record<QuestionType, string> = {
@@ -103,7 +104,7 @@ export default function PantallaJuego({ paises, desafio, nombreJugador, onGameOv
     continente: `Continente de ${pregunta.country.name}`,
   };
 
-  const progreso = ((preguntaNum) / desafio.num_preguntas) * 100;
+  const progreso = (indice / desafio.num_preguntas) * 100;
 
   return (
     <motion.div
@@ -133,7 +134,7 @@ export default function PantallaJuego({ paises, desafio, nombreJugador, onGameOv
           <span className="text-white font-bold text-sm">{puntaje}</span>
         </div>
 
-        <span className="text-slate-500 text-xs">{preguntaNum + 1}/{desafio.num_preguntas}</span>
+        <span className="text-slate-500 text-xs">{indice + 1}/{desafio.num_preguntas}</span>
       </div>
 
       {/* Barra de progreso */}
