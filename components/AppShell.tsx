@@ -99,7 +99,7 @@ export default function AppShell({ desafios, sesion }: Props) {
       </div>
 
       <footer className="text-center py-3 text-slate-800 text-xs">
-        Datos: REST Countries API v3.1
+        Datos: mledoze/countries · Banderas: flagcdn.com
       </footer>
     </div>
   );

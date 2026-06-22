@@ -1,11 +1,17 @@
 import { CONTINENTES_VALIDOS, CONTINENTE_ES } from "@/lib/countries";
 import type { Country } from "@/lib/types";
 
-// Fuentes en orden de prioridad. Si la primera falla se intenta la siguiente.
+/**
+ * Proxy de paises.
+ *
+ * restcountries.com/v3.1 fue DEPRECADO (devuelve {success:false,...}),
+ * por eso fallaba siempre. Usamos el dataset mledoze/countries, servido
+ * desde dos CDNs distintos para resiliencia. Las imagenes de bandera se
+ * construyen desde el codigo ISO (cca2) via flagcdn.com.
+ */
 const SOURCES = [
-  "https://restcountries.com/v3.1/all?fields=name,capital,continents,flags,flag",
-  // Misma base de datos, CDN de GitHub — formato identico a v3.1
   "https://raw.githubusercontent.com/mledoze/countries/master/countries.json",
+  "https://cdn.jsdelivr.net/gh/mledoze/countries@master/countries.json",
 ];
 
 async function fetchJson(url: string, timeoutMs = 10000): Promise<unknown[]> {
@@ -21,21 +27,25 @@ async function fetchJson(url: string, timeoutMs = 10000): Promise<unknown[]> {
   }
 }
 
+// El dataset mledoze usa `region` (no `continents`) y `cca2` para la bandera.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parsear(raw: unknown[]): Country[] {
   return (raw as any[])
     .filter((p) => {
-      const c = p.continents?.[0];
-      const cap = p.capital?.[0];
-      return cap && c && CONTINENTES_VALIDOS.has(c);
+      const region = p.region;
+      const capital = p.capital?.[0];
+      return capital && region && CONTINENTES_VALIDOS.has(region);
     })
-    .map((p) => ({
-      name: p.name.common,
-      capital: p.capital[0],
-      continent: CONTINENTE_ES[p.continents[0]] ?? p.continents[0],
-      flagUrl: p.flags?.svg ?? p.flags?.png ?? "",
-      flagEmoji: p.flag ?? "🏳️",
-    }));
+    .map((p) => {
+      const code = typeof p.cca2 === "string" ? p.cca2.toLowerCase() : "";
+      return {
+        name: p.name.common,
+        capital: p.capital[0],
+        continent: CONTINENTE_ES[p.region] ?? p.region,
+        flagUrl: code ? `https://flagcdn.com/${code}.svg` : "",
+        flagEmoji: p.flag || "🏳️",
+      };
+    });
 }
 
 export async function GET() {
