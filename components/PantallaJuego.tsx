@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, Star, ArrowRight, HelpCircle, Map } from "lucide-react";
+import { Heart, Star, ArrowRight, HelpCircle, Map, AlertTriangle } from "lucide-react";
 import type { Country, Question, QuestionType, Desafio } from "@/lib/types";
 
 interface Props {
@@ -49,13 +49,12 @@ export default function PantallaJuego({ paises, desafio, nombreJugador, onGameOv
   // Sin países disponibles → pantalla de error en lugar de terminar el juego
   if (cola.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <p className="text-slate-400 text-center">
-          Sin paises disponibles para este desafio.
-        </p>
+      <div className="flex flex-col items-center justify-center gap-4 h-64 text-center">
+        <AlertTriangle className="w-12 h-12 text-amber-400" />
+        <p className="text-white font-bold">Sin paises disponibles</p>
         <button
           onClick={() => onGameOver(0)}
-          className="text-sm text-cyan-400 underline hover:text-cyan-300 transition-colors"
+          className="bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl px-5 py-2.5 text-sm transition-colors"
         >
           Volver al lobby
         </button>

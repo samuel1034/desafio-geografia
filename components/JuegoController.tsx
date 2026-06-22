@@ -23,12 +23,35 @@ interface Props {
 }
 
 export default function JuegoController({ paises, desafios, sesion }: Props) {
-  const [gameState, setGameState]       = useState<GameState>("lobby");
-  const [desafioActual, setDesafioActual] = useState<Desafio | null>(null);
-  const [puntajeFinal, setPuntajeFinal] = useState(0);
+  const [gameState, setGameState]           = useState<GameState>("lobby");
+  const [desafioActual, setDesafioActual]   = useState<Desafio | null>(null);
+  const [paisesDelJuego, setPaisesDelJuego] = useState<Country[]>([]);
+  const [puntajeFinal, setPuntajeFinal]     = useState(0);
 
   function handleStart(desafio: Desafio) {
+    let lista = !desafio.continente
+      ? [...paises]
+      : paises.filter(
+          (p) =>
+            p.continent.toLowerCase().trim() ===
+            desafio.continente!.toLowerCase().trim()
+        );
+
+    // Fallback al pool global si el filtro de continente quedo vacio
+    if (lista.length === 0 && paises.length > 0) {
+      console.warn(`[JuegoController] Continente "${desafio.continente}" sin paises. Usando todos.`);
+      lista = [...paises];
+    }
+
+    // Guardia final: si no hay paises de ninguna forma, no iniciar el juego
+    if (lista.length === 0) {
+      console.error("[JuegoController] Array de paises vacio, no se puede iniciar el juego");
+      return;
+    }
+
+    console.info(`[JuegoController] Iniciando con ${lista.length} paises`);
     setDesafioActual(desafio);
+    setPaisesDelJuego(lista.sort(() => Math.random() - 0.5));
     setGameState("playing");
   }
 
@@ -39,22 +62,9 @@ export default function JuegoController({ paises, desafios, sesion }: Props) {
 
   function handleReiniciar() {
     setDesafioActual(null);
+    setPaisesDelJuego([]);
     setPuntajeFinal(0);
     setGameState("lobby");
-  }
-
-  // Filtra paises segun el continente del desafio
-  function paisesDelDesafio(desafio: Desafio): Country[] {
-    if (!desafio.continente) return paises;
-    const continenteBuscado = desafio.continente.toLowerCase().trim();
-    const lista = paises.filter(
-      (p) => p.continent.toLowerCase().trim() === continenteBuscado
-    );
-    if (lista.length === 0) {
-      console.warn(`[JuegoController] Continente "${desafio.continente}" sin paises. Usando todos.`);
-      return [...paises];
-    }
-    return lista;
   }
 
   return (
@@ -73,7 +83,7 @@ export default function JuegoController({ paises, desafios, sesion }: Props) {
         {gameState === "playing" && desafioActual && (
           <div key="playing" className="w-full max-w-md">
             <PantallaJuego
-              paises={paisesDelDesafio(desafioActual)}
+              paises={paisesDelJuego}
               desafio={desafioActual}
               nombreJugador={sesion.nombre}
               onGameOver={handleGameOver}

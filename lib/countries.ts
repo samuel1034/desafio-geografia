@@ -27,34 +27,13 @@ const CONTINENTE_ES: Record<string, string> = {
   Antarctic: "Antartica",
 };
 
-/**
- * Descarga y normaliza la lista de paises desde la REST Countries API.
- * Filtra paises que no tienen capital o continente valido.
- *
- * @returns Array de paises normalizados, mezclados aleatoriamente
- */
-export async function obtenerPaises(): Promise<Country[]> {
-  const resp = await fetch(
-    "https://restcountries.com/v3.1/all?fields=name,capital,continents,flags,flag",
-    {
-      // En produccion (Vercel) recargamos los datos cada hora
-      next: { revalidate: 3600 },
-    }
-  );
+const API_URL =
+  "https://restcountries.com/v3.1/all?fields=name,capital,continents,flags,flag";
 
-  if (!resp.ok) {
-    throw new Error(`REST Countries API error: ${resp.status}`);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data = await resp.json();
-  // La API puede devolver un objeto de error con HTTP 200 en casos de rate-limit o
-  // mantenimiento; si no es un array el .filter() siguiente lanzaria TypeError.
-  const raw: any[] = Array.isArray(data) ? data : [];
-
-  const paises: Country[] = raw
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parsearPaises(raw: any[]): Country[] {
+  return raw
     .filter((p) => {
-      // Descartamos paises sin capital o sin continente reconocido
       const continente = p.continents?.[0];
       const capital = p.capital?.[0];
       return capital && continente && CONTINENTES_VALIDOS.has(continente);
@@ -66,7 +45,47 @@ export async function obtenerPaises(): Promise<Country[]> {
       flagUrl: p.flags?.svg ?? p.flags?.png ?? "",
       flagEmoji: p.flag ?? "🏳️",
     }));
+}
 
-  // Mezclamos el array para que el orden sea aleatorio cada vez
-  return paises.sort(() => Math.random() - 0.5);
+/**
+ * Descarga y normaliza la lista de paises desde la REST Countries API.
+ * Reintenta hasta 3 veces con timeout de 8s por intento.
+ * Lanza error si tras 3 intentos no se obtienen al menos 50 paises.
+ *
+ * @returns Array de paises normalizados, mezclados aleatoriamente
+ */
+export async function obtenerPaises(): Promise<Country[]> {
+  let lastError: unknown;
+
+  for (let intento = 1; intento <= 3; intento++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      const resp = await fetch(API_URL, {
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      clearTimeout(timeoutId);
+
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await resp.json();
+      const raw = Array.isArray(data) ? data : [];
+      const paises = parsearPaises(raw);
+
+      if (paises.length < 50) {
+        throw new Error(`Solo ${paises.length} paises recibidos, reintentando`);
+      }
+
+      return paises.sort(() => Math.random() - 0.5);
+    } catch (err) {
+      lastError = err;
+      console.error(`[obtenerPaises] Intento ${intento}/3 fallido:`, err);
+      if (intento < 3) await new Promise((r) => setTimeout(r, 1000 * intento));
+    }
+  }
+
+  throw lastError;
 }
