@@ -3,7 +3,7 @@
 /**
  * AppShell - Envoltorio principal para estudiantes.
  * Incluye header con info de sesion y el JuegoController.
- * Hace el fetch de paises desde el navegador (no desde Vercel).
+ * Obtiene la lista de paises desde /api/countries (proxy interno).
  */
 
 import { useState, useEffect } from "react";
@@ -17,61 +17,27 @@ interface Props {
   sesion: SessionPayload;
 }
 
-const CONTINENTES_VALIDOS = new Set([
-  "Africa",
-  "Americas",
-  "Asia",
-  "Europe",
-  "Oceania",
-  "Antarctic",
-]);
-
-const CONTINENTE_ES: Record<string, string> = {
-  Africa: "Africa",
-  Americas: "America",
-  Asia: "Asia",
-  Europe: "Europa",
-  Oceania: "Oceania",
-  Antarctic: "Antartica",
-};
-
-const API_URL =
-  "https://restcountries.com/v3.1/all?fields=name,capital,continents,flags,flag";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function parsear(raw: any[]): Country[] {
-  return raw
-    .filter((p) => {
-      const c = p.continents?.[0];
-      const cap = p.capital?.[0];
-      return cap && c && CONTINENTES_VALIDOS.has(c);
-    })
-    .map((p) => ({
-      name: p.name.common,
-      capital: p.capital[0],
-      continent: CONTINENTE_ES[p.continents[0]] ?? p.continents[0],
-      flagUrl: p.flags?.svg ?? p.flags?.png ?? "",
-      flagEmoji: p.flag ?? "🏳️",
-    }));
-}
-
 export default function AppShell({ desafios, sesion }: Props) {
-  const [paises, setPaises]   = useState<Country[]>([]);
+  const [paises, setPaises]     = useState<Country[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [error, setError]     = useState(false);
+  const [error, setError]       = useState(false);
 
   useEffect(() => {
-    fetch(API_URL)
+    fetch("/api/countries")
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
+        return r.json() as Promise<Country[]>;
       })
-      .then((raw) => {
-        const lista = Array.isArray(raw) ? parsear(raw) : [];
-        if (lista.length < 50) throw new Error("Respuesta incompleta de la API");
-        setPaises(lista.sort(() => Math.random() - 0.5));
+      .then((data) => {
+        if (!Array.isArray(data) || data.length < 50) {
+          throw new Error("Datos insuficientes");
+        }
+        setPaises(data.sort(() => Math.random() - 0.5));
       })
-      .catch(() => setError(true))
+      .catch((err) => {
+        console.error("[AppShell] Error cargando paises:", err);
+        setError(true);
+      })
       .finally(() => setCargando(false));
   }, []);
 
