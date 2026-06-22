@@ -3,20 +3,78 @@
 /**
  * AppShell - Envoltorio principal para estudiantes.
  * Incluye header con info de sesion y el JuegoController.
+ * Hace el fetch de paises desde el navegador (no desde Vercel).
  */
 
+import { useState, useEffect } from "react";
 import { cerrarSesion } from "@/lib/actions";
-import { Globe2, LogOut, GraduationCap } from "lucide-react";
+import { Globe2, LogOut, GraduationCap, Loader2 } from "lucide-react";
 import JuegoController from "@/components/JuegoController";
 import type { Country, Desafio, SessionPayload } from "@/lib/types";
 
 interface Props {
-  paises: Country[];
   desafios: Desafio[];
   sesion: SessionPayload;
 }
 
-export default function AppShell({ paises, desafios, sesion }: Props) {
+const CONTINENTES_VALIDOS = new Set([
+  "Africa",
+  "Americas",
+  "Asia",
+  "Europe",
+  "Oceania",
+  "Antarctic",
+]);
+
+const CONTINENTE_ES: Record<string, string> = {
+  Africa: "Africa",
+  Americas: "America",
+  Asia: "Asia",
+  Europe: "Europa",
+  Oceania: "Oceania",
+  Antarctic: "Antartica",
+};
+
+const API_URL =
+  "https://restcountries.com/v3.1/all?fields=name,capital,continents,flags,flag";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parsear(raw: any[]): Country[] {
+  return raw
+    .filter((p) => {
+      const c = p.continents?.[0];
+      const cap = p.capital?.[0];
+      return cap && c && CONTINENTES_VALIDOS.has(c);
+    })
+    .map((p) => ({
+      name: p.name.common,
+      capital: p.capital[0],
+      continent: CONTINENTE_ES[p.continents[0]] ?? p.continents[0],
+      flagUrl: p.flags?.svg ?? p.flags?.png ?? "",
+      flagEmoji: p.flag ?? "🏳️",
+    }));
+}
+
+export default function AppShell({ desafios, sesion }: Props) {
+  const [paises, setPaises]   = useState<Country[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError]     = useState(false);
+
+  useEffect(() => {
+    fetch(API_URL)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((raw) => {
+        const lista = Array.isArray(raw) ? parsear(raw) : [];
+        if (lista.length < 50) throw new Error("Respuesta incompleta de la API");
+        setPaises(lista.sort(() => Math.random() - 0.5));
+      })
+      .catch(() => setError(true))
+      .finally(() => setCargando(false));
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#0a0f1a] flex flex-col">
 
@@ -50,7 +108,28 @@ export default function AppShell({ paises, desafios, sesion }: Props) {
 
       {/* Contenido */}
       <div className="flex-1 flex items-start md:items-center justify-center p-6 pt-4">
-        <JuegoController paises={paises} desafios={desafios} sesion={sesion} />
+        {cargando ? (
+          <div className="flex flex-col items-center gap-3 text-slate-400">
+            <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+            <span className="text-sm">Cargando paises...</span>
+          </div>
+        ) : error ? (
+          <div className="text-center max-w-sm">
+            <Globe2 className="w-14 h-14 text-red-400 mx-auto mb-4" />
+            <h2 className="text-white font-bold mb-2">No se pudieron cargar los paises</h2>
+            <p className="text-slate-400 text-sm mb-4">
+              Verifica tu conexion y vuelve a intentarlo.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl px-5 py-2.5 text-sm transition-colors"
+            >
+              Reintentar
+            </button>
+          </div>
+        ) : (
+          <JuegoController paises={paises} desafios={desafios} sesion={sesion} />
+        )}
       </div>
 
       <footer className="text-center py-3 text-slate-800 text-xs">
